@@ -10,10 +10,10 @@ on:
         required: false
         type: string
         default: ./Dockerfile
-      gitops_repo:
+      deployment_repo:
         required: true
         type: string
-      gitops_branch:
+      deployment_branch:
         required: false
         type: string
         default: main
@@ -151,8 +151,8 @@ jobs:
       - name: Checkout GitOps repo
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.gitops_repo }}
-          ref: ${{ inputs.gitops_branch }}
+          repository: ${{ inputs.deployment_repo }}
+          ref: ${{ inputs.deployment_branch }}
           token: ${{ secrets.GITOPS_PAT }}
           path: gitops
 
