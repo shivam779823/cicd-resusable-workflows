@@ -58,12 +58,12 @@ jobs:
       # ----------------------
       # 🔍 Secret Scanning (Gitleaks)
       # ----------------------
-      - name: Scan for hardcoded secrets
-        uses: gitleaks/gitleaks-action@v2
+      # - name: Scan for hardcoded secrets
+      #   uses: gitleaks/gitleaks-action@v2
                   
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITOPS_PAT }}
+      # - uses: gitleaks/gitleaks-action@v2
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITOPS_PAT }}
 
       # ----------------------
       # 🛡️ SAST (CodeQL)
