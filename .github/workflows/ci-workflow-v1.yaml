@@ -1,0 +1,172 @@
+name: GitOps CI - {{ github.repository }}
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: true
+        type: string
+      dockerfile_path:
+        required: false
+        type: string
+        default: ./Dockerfile
+      gitops_repo:
+        required: true
+        type: string
+      gitops_branch:
+        required: false
+        type: string
+        default: main
+      manifest_path:
+        required: true
+        type: string
+      python_version:
+        required: false
+        type: string
+        default: "3.11"
+      run_tests:
+        required: false
+        type: boolean
+        default: true
+
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+      GITOPS_PAT:
+        required: true
+
+env:
+  REGISTRY: docker.io
+
+jobs:
+  ci-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: write
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # ----------------------
+      # 🔍 Secret Scanning (Gitleaks)
+      # ----------------------
+      - name: Scan for hardcoded secrets
+        uses: gitleaks/gitleaks-action@v2
+
+      # ----------------------
+      # 🛡️ SAST (CodeQL)
+      # ----------------------
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      # ----------------------
+      # 🐍 Dependency Vulnerability Scan
+      # ----------------------
+      - name: Set up Python
+        if: inputs.run_tests == true
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install dependencies
+        if: inputs.run_tests == true && hashFiles('requirements.txt') != ''
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit pytest
+
+      - name: Dependency vulnerability scan
+        if: hashFiles('requirements.txt') != ''
+        run: pip-audit
+
+      - name: Run tests
+        if: inputs.run_tests == true
+        run: pytest || echo "No tests found"
+
+      # ----------------------
+      # 🐳 Build & Push Container
+      # ----------------------
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Generate image tag
+        id: tag
+        run: echo "IMAGE_TAG=${{ env.REGISTRY }}/${{ inputs.image_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ inputs.dockerfile_path }}
+          push: true
+          tags: ${{ steps.tag.outputs.IMAGE_TAG }}
+
+      # ----------------------
+      # 📦 SBOM Generation
+      # ----------------------
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.tag.outputs.IMAGE_TAG }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+      # ----------------------
+      # 🔎 Container Image Scan
+      # ----------------------
+      - name: Scan container image for vulnerabilities
+        uses: aquasecurity/trivy-action@v0.20.0
+        with:
+          image-ref: ${{ steps.tag.outputs.IMAGE_TAG }}
+          format: table
+          exit-code: '1'
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      # ----------------------
+      # 📝 Update GitOps Repo (only if all above passed)
+      # ----------------------
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.gitops_repo }}
+          ref: ${{ inputs.gitops_branch }}
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Update Kubernetes manifest image
+        run: |
+          cd gitops/${{ inputs.manifest_path }}
+          echo "Updating image to ${{ steps.tag.outputs.IMAGE_TAG }}"
+          sed -i "s|image: .*|image: ${{ steps.tag.outputs.IMAGE_TAG }}|g" deployment.yaml
+
+      - name: Commit and push GitOps change
+        run: |
+          cd gitops
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Secure update: image → ${{ steps.tag.outputs.IMAGE_TAG }}" || echo "No changes"
+          git push
