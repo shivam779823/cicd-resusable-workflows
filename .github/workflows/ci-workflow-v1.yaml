@@ -47,6 +47,7 @@ jobs:
       contents: read
       security-events: write
       packages: write
+      
 
     steps:
       - name: Checkout source
@@ -137,7 +138,7 @@ jobs:
       # 🔎 Container Image Scan
       # ----------------------
       - name: Scan container image for vulnerabilities
-        uses: aquasecurity/trivy-action@v0.20.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.tag.outputs.IMAGE_TAG }}
           format: table
