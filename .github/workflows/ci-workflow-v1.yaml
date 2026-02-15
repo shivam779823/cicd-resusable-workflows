@@ -28,6 +28,10 @@ on:
         required: false
         type: boolean
         default: true
+      release_workflow:
+        required: false
+        type: boolean
+        default: false
 
     secrets:
       DOCKERHUB_USERNAME:
@@ -37,7 +41,8 @@ on:
       GITOPS_PAT:
         required: true
 
-
+env:
+  dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
 
 jobs:
   ci-pipeline:
@@ -108,9 +113,14 @@ jobs:
 
       - name: Generate image tag
         id: tag
-        run: echo "IMAGE_TAG=${{ env.dockerhub_username }}/${{ inputs.image_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-        with:
-          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |-
+          echo "IMAGE_TAG=${{ env.dockerhub_username }}/${{ inputs.image_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+          if [ "${{ inputs.release_workflow }}" = "true" ]; then
+            echo "Release workflow enabled - tagging image as latest"
+            echo "IMAGE_TAG=${{ env.dockerhub_username }}/${{ inputs.image_name }}:${{github.run_number}}" >> $GITHUB_OUTPUT
+          fi
+
 
       - name: docker Builder
         run: |-
@@ -125,9 +135,7 @@ jobs:
           docker build -t ${{ steps.tag.outputs.IMAGE_TAG }} -f ${{ inputs.dockerfile_path }} .
           docker push ${{ steps.tag.outputs.IMAGE_TAG }}
           echo "Build and push successful"
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
 
       # ----------------------
       # 📦 SBOM Generation
