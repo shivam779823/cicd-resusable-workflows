@@ -9,7 +9,7 @@ on:
       dockerfile_path:
         required: false
         type: string
-        default: .
+        default: './Dockerfile'
       deployment_repo:
         required: true
         type: string
