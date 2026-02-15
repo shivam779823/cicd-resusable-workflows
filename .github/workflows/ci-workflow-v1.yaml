@@ -114,7 +114,9 @@ jobs:
 
       - name: Generate image tag
         id: tag
-        run: echo "IMAGE_TAG=${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+        run: echo "IMAGE_TAG=${{ env.dockerhub_username }}/${{ inputs.image_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+        with:
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
 
       - name: Build and push image
         uses: docker/build-push-action@v5
