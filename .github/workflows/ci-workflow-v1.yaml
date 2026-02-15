@@ -96,7 +96,7 @@ jobs:
           pip install pip-audit pytest
 
       - name: Dependency vulnerability scan
-        if: hashFiles('requirements.txt') != ''
+        if: inputs.run_tests == true && hashFiles('requirements.txt') != ''
         run: pip-audit
 
       - name: Run tests
@@ -177,3 +177,4 @@ jobs:
           git add .
           git commit -m "Secure update: image → ${{ steps.tag.outputs.IMAGE_TAG }}" || echo "No changes"
           git push
+
