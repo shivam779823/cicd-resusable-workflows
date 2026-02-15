@@ -37,8 +37,7 @@ on:
       GITOPS_PAT:
         required: true
 
-env:
-  REGISTRY: docker.io
+
 
 jobs:
   ci-pipeline:
@@ -106,11 +105,6 @@ jobs:
       # ----------------------
       # 🐳 Build & Push Container
       # ----------------------
-      - name: Log in to registry
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Generate image tag
         id: tag
@@ -118,13 +112,22 @@ jobs:
         with:
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
 
+      - name: docker Builder
+        run: |-
+          echo "logging to the dockerhub"
+          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+          echo "login success"
+
       - name: Build and push image
-        uses: docker/build-push-action@v5
+        run: |-
+          echo "Building and pushing image ${{ steps.tag.outputs.IMAGE_TAG }}"
+          docker build -t ${{ steps.tag.outputs.IMAGE_TAG }} -f ${{ inputs.dockerfile_path }} .
+          docker push ${{ steps.tag.outputs.IMAGE_TAG }}
+          echo "Build and push successful"
         with:
-          context: .
-          file: ${{ inputs.dockerfile_path }}
-          push: true
-          tags: ${{ steps.tag.outputs.IMAGE_TAG }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # ----------------------
       # 📦 SBOM Generation
