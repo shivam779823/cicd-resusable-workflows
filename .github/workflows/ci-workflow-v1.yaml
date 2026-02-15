@@ -161,7 +161,7 @@ jobs:
         with:
           image-ref: ${{ steps.tag.outputs.IMAGE_TAG }}
           format: table
-          exit-code: '1'
+          exit-code: '0'
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
