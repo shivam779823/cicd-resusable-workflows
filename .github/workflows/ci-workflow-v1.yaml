@@ -178,3 +178,5 @@ jobs:
           git commit -m "Secure update: image → ${{ steps.tag.outputs.IMAGE_TAG }}" || echo "No changes"
           git push
 
+
+          
